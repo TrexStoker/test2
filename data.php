@@ -1,48 +1,36 @@
 <?php
-header("Content-Type: application/json");
+header("Content-Type: application/json; charset=utf-8");
 
-function scanImages($dir) {
-    $path = __DIR__ . "/" . $dir;
-    if (!is_dir($path)) return [];
-    $out = [];
-    foreach (scandir($path) as $f) {
-        if (preg_match('/\.(png|jpg|webp)$/i', $f)) {
-            $out[] = $f;
+$file = __DIR__ . "/bans.csv";
+$result = [];
+
+if (!file_exists($file)) {
+    echo json_encode($result);
+    exit;
+}
+
+$lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+if (!$lines) {
+    echo json_encode($result);
+    exit;
+}
+
+/* первая строка — игроки */
+$players = array_map("trim", explode(";", array_shift($lines)));
+
+foreach ($players as $p) {
+    if ($p !== "") $result[$p] = [];
+}
+
+/* остальные строки — персонажи */
+foreach ($lines as $line) {
+    $cells = explode(";", $line);
+    foreach ($cells as $i => $val) {
+        $val = trim($val);
+        if ($val !== "" && isset($players[$i])) {
+            $result[$players[$i]][] = $val;
         }
     }
-    return $out;
 }
 
-function scanPerks($base) {
-    $result = [];
-    for ($i = 1; $i <= 4; $i++) {
-        $result[$i] = scanImages("$base/$i");
-    }
-    return $result;
-}
-
-/* ===== PLAYERS ===== */
-$players = [];
-$csv = __DIR__ . "/players.csv";
-
-if (file_exists($csv)) {
-    $f = fopen($csv, "r");
-    fgetcsv($f, 0, ",", '"', "\\"); // header
-    while (($row = fgetcsv($f, 0, ",", '"', "\\")) !== false) {
-        if (!empty($row[0])) $players[] = $row[0];
-    }
-    fclose($f);
-}
-
-echo json_encode([
-    "players" => $players,
-    "characters" => [
-        "survivors" => scanImages("characters/survivors"),
-        "killers"   => scanImages("characters/killers")
-    ],
-    "perks" => [
-        "survivors" => scanPerks("perks/survivors"),
-        "killers"   => scanPerks("perks/killers")
-    ],
-    "maps" => scanImages("maps")
-]);
+echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
